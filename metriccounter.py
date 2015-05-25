@@ -62,7 +62,7 @@ class MetricCounter(object):
         """Set the value of current cells."""
         self.tags = tags
         self.tag_string = " ".join(
-            '{}={}'.format(k, v) for k, v in tags.iteritems())
+            '{}={}'.format(k, v) for k, v in tags.items())
 
     def get_sum(self):
         """Get the sum of values in the counter."""
