@@ -10,12 +10,20 @@ class MetricCounter(object):
 
     """MetricCounter."""
 
-    def __init__(self, name, span_secs=15, interval_secs=1):
+    fmt = 'put %(name)s %(timestamp)s %(value)s %(tag_string)s\n'
+
+    def __init__(self, name, timespan=15, granularity=1, tags={}, fmt=None):
         self.name = name
-        self.span_secs = span_secs
-        self.interval_secs = interval_secs
+        self.timespan = timespan
+        self.granularity = granularity
         self.last = 0
-        self.cells = [0.0] * (span_secs + 1)
+        self.cells = [0.0] * (timespan + 1)
+        self.tags = tags
+        self.tag_string = " ".join(
+            '{}={}'.format(k, v) for k, v in tags.iteritems())
+
+        if fmt:
+            self.fmt = fmt
 
     def inc(self):
         """Increment the counter by 1"""
@@ -42,22 +50,29 @@ class MetricCounter(object):
             self.cells[i] = 0.0
 
     def dump(self):
-        """Dump counter per interval."""
+        """Dump counter per granularity."""
         self._refresh()
         now = self.now()
         current_cell = self._current_cell()
         cells = self.cells[current_cell+1:] + self.cells[:current_cell]
-        for part in range(0, self.span_secs, self.interval_secs):
-            value = sum(cells[part: part + self.interval_secs])
-            timestamp = now - self.span_secs + part
-            sys.stdout.write('{} {} {}\n'.format(self.name, timestamp, value))
+        for part in range(0, self.timespan, self.granularity):
+            value = sum(cells[part: part + self.granularity])
+            timestamp = now - self.timespan + part
+            sys.stdout.write(
+                self.fmt % {
+                    'name': self.name,
+                    'timestamp': timestamp,
+                    'value': value,
+                    'tag_string': self.tag_string
+                }
+            )
 
     def _refresh(self):
         """Purge outdated cells in the counter."""
         now = self.now()
         current_cell = self._current_cell()
         tdiff = now - self.last
-        if tdiff > self.span_secs:
+        if tdiff > self.timespan:
             self.flush()
         elif tdiff:
             for i in range(current_cell - tdiff + 1, current_cell + 1):
@@ -103,35 +118,37 @@ class StopWatch(object):
 
     @classmethod
     def set_time_function(cls, timefunc):
+        """Set an alternative wall clock function."""
         cls.time = timefunc
 
     @classmethod
     def set_sleep_function(cls, sleepfunc):
+        """Set an alternative sleep function."""
         cls.sleep = sleepfunc
 
 
 class autodump(object):
 
-    """Automatically dump counter records at a constant interval."""
+    """Automatically dump counter records at a constant granularity."""
 
     def __init__(self, metric_counter):
         self.metric_counter = metric_counter
         self.stopping = False
         self._scheduler = sched.scheduler(StopWatch.time, StopWatch.sleep)
 
-        since_last_dump = metric_counter.now() % metric_counter.span_secs
+        since_last_dump = metric_counter.now() % metric_counter.timespan
         next_dump_time = (
-            metric_counter.now() - since_last_dump + metric_counter.span_secs
+            metric_counter.now() - since_last_dump + metric_counter.timespan
         )
         self._scheduler.enterabs(next_dump_time, 0, self._dump_reschedule, [])
 
         self.dumper_thread = threading.Thread(target=self._scheduler.run)
 
     def _dump_reschedule(self):
-        """Reschedule dump action at the next interval and dump values."""
+        """Reschedule dump action at the next granularity and dump values."""
         if not self.stopping:
             self._scheduler.enterabs(
-                self.metric_counter.now() + self.metric_counter.span_secs, 0,
+                self.metric_counter.now() + self.metric_counter.timespan, 0,
                 self._dump_reschedule, []
             )
         self.metric_counter.dump()
