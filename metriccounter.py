@@ -1,4 +1,4 @@
-"""A rate counter for time series monitoring."""
+"""A metric counter for time series monitoring."""
 
 import sched
 import sys
@@ -6,9 +6,9 @@ import threading
 import time
 
 
-class RateCounter(object):
+class MetricCounter(object):
 
-    """RateCounter."""
+    """MetricCounter."""
 
     def __init__(self, name, span_secs=15, interval_secs=1):
         self.name = name
@@ -26,7 +26,12 @@ class RateCounter(object):
         self._refresh()
         self.cells[self._current_cell()] += value
 
-    def get(self):
+    def set(self, value):
+        """Set the value of current cells."""
+        self._refresh()
+        self.cells[self._current_cell()] = value
+
+    def get_sum(self):
         """Get the sum of values in the counter."""
         self._refresh()
         return sum(self.cells)
@@ -69,18 +74,54 @@ class RateCounter(object):
         return self.now() % len(self.cells)
 
 
+class StopWatch(object):
+
+    """A basic timer/stopwatch class for use with the 'with' statement.
+
+    Usage:
+
+        with StopWatch() as timer:
+            do_stuff()
+        print timer.duration  # <-- Duration of the do_stuff() activity
+    """
+
+    sleep = time.sleep
+    time = time.time
+
+    def __init__(self):
+        self.start_time = None
+        self.end_time = None
+        self.duration = None
+
+    def __enter__(self):
+        self.start_time = self.time()
+        return self
+
+    def __exit__(self, ttype, value, traceback):
+        self.end_time = self.time()
+        self.duration = self.end_time - self.start_time
+
+    @classmethod
+    def set_time_function(cls, timefunc):
+        cls.time = timefunc
+
+    @classmethod
+    def set_sleep_function(cls, sleepfunc):
+        cls.sleep = sleepfunc
+
+
 class autodump(object):
 
-    """Helper class automatically dump rate counter at an interval."""
+    """Automatically dump counter records at a constant interval."""
 
-    def __init__(self, rate_counter):
-        self.rate_counter = rate_counter
+    def __init__(self, metric_counter):
+        self.metric_counter = metric_counter
         self.stopping = False
-        self._scheduler = sched.scheduler(time.time, time.sleep)
+        self._scheduler = sched.scheduler(StopWatch.time, StopWatch.sleep)
 
-        since_last_dump = rate_counter.now() % rate_counter.span_secs
+        since_last_dump = metric_counter.now() % metric_counter.span_secs
         next_dump_time = (
-            rate_counter.now() - since_last_dump + rate_counter.span_secs
+            metric_counter.now() - since_last_dump + metric_counter.span_secs
         )
         self._scheduler.enterabs(next_dump_time, 0, self._dump_reschedule, [])
 
@@ -90,17 +131,37 @@ class autodump(object):
         """Reschedule dump action at the next interval and dump values."""
         if not self.stopping:
             self._scheduler.enterabs(
-                self.rate_counter.now() + self.rate_counter.span_secs, 0,
+                self.metric_counter.now() + self.metric_counter.span_secs, 0,
                 self._dump_reschedule, []
             )
-        self.rate_counter.dump()
+        self.metric_counter.dump()
 
     def __enter__(self):
+        """Start auto-dumping on entering 'when' context."""
         self.dumper_thread.start()
-        return self.rate_counter
+        return self.metric_counter
 
     def __exit__(self, ttype, value, traceback):
+        """Cleanup on leaving 'when' context."""
         self.stopping = True
         self.dumper_thread.join()
         self.stopping = False
         return False
+
+
+def _get_next_run_time(interval):
+    """Get next run time."""
+    next_time = StopWatch.time()
+    while True:
+        next_time += interval
+        yield next_time
+
+def run_every_n_seconds(interval, counter, func, args=[], kwargs={}):
+    """Run a function at an even interval."""
+    next_run_time_generator = _get_next_run_time(interval)
+    for next_time_to_run in next_run_time_generator:
+        counter.set(func(*args, **kwargs))
+        # Fast forward if func run exceeded the duration of the interval.
+        while next_time_to_run < StopWatch.time():
+            next_time_to_run = _get_next_run_time(interval)
+        StopWatch.sleep(next_time_to_run - StopWatch.time())
