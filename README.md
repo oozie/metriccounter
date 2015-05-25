@@ -1,9 +1,22 @@
 # metriccounter
-This is a simple Python implementation of a metric counter for recording time series data at 1-second granularity.
+This is a simple Python implementation of a metric counter for recording time series data at up-to 1-second granularity. All examples work out-of-the-box with tcollector and as raw OpenTSDB puts.
+## Usage
+### with tcollector
+Deploy your collectors under `collectors/0`. `MetricCounter` detects
+### as raw OpenTSDB puts
+Useful for testing and granular burstiness and performance analysis.
+```sh
+$ python collector.py | nc opentsdb.host 4242
+```
 ## Examples
-### number of running processes
+### Flow metrics (rate counters)
+#### TBD
+### Stock metrics
+#### numprocesses.py
 ```python
 #!/usr/bin/python
+
+# Count number of running processes.
 import os
 from metriccounter import MetricCounter, autodump, run_every_n_seconds
 
