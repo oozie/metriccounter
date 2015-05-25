@@ -6,13 +6,14 @@ This is a Python implementation of a metric counter for recording time series da
 * Consecutive datapoints of the same value will be deduped,
 * ingestion delay on the order of minutes,
 * To deploy, place collectors under `collectors/0`
+
 ### as raw OpenTSDB puts
 Little overhead in creating collectors allows for quick prototyping and burstiness/performance analyses, sending data as raw input to OpenTSDB
 * stores a lot of datapoints; 
 * ingestion delay on the orders of seconds
-* To send data to OpenTSDB
+* To send data to OpenTSDB, pipe the output from your collector to the TSD
 ```sh
-$ python collector.py | nc opentsdb.host 4242
+$ python collector.py | nc opentsdb.host.corp 4242
 ```
 ## Examples
 ### Flow metrics (rate counters)
