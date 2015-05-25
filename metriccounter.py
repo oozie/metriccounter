@@ -1,16 +1,31 @@
 """A metric counter for time series monitoring."""
 
 import sched
+import socket
 import sys
 import threading
 import time
 
+DEFAULT_PUT_FORMAT = 'opentsdb'
+try:
+    import collectors.lib
+    DEFAULT_PUT_FORMAT = 'tcollector'
+except ImportError:
+    pass
+
+PUT_FORMATS = {
+    'opentsdb': 'put %(name)s %(timestamp)s %(value)s %(tag_string)s\n',
+    'tcollector': '%(name)s %(timestamp)s %(value)s %(tag_string)s\n',
+}
 
 class MetricCounter(object):
 
     """MetricCounter."""
 
-    fmt = 'put %(name)s %(timestamp)s %(value)s %(tag_string)s\n'
+    # opentsdb's put
+    fmt = PUT_FORMATS.get(DEFAULT_PUT_FORMAT)
+    tags = None
+    tag_string = None
 
     def __init__(self, name, timespan=15, granularity=1, tags={}, fmt=None):
         self.name = name
@@ -18,12 +33,16 @@ class MetricCounter(object):
         self.granularity = granularity
         self.last = 0
         self.cells = [0.0] * (timespan + 1)
-        self.tags = tags
-        self.tag_string = " ".join(
-            '{}={}'.format(k, v) for k, v in tags.iteritems())
-
+        # Allow for overwriting the host tag.
+        _tags = {'host': socket.gethostname()}
+        _tags.update(tags)
         if fmt:
             self.fmt = fmt
+        if DEFAULT_PUT_FORMAT == 'tcollector':
+            # tcollector automatically appends the host tag.
+            if 'host' in _tags:
+                _tags.pop('host')
+        self.set_tags(_tags)
 
     def inc(self):
         """Increment the counter by 1"""
@@ -38,6 +57,12 @@ class MetricCounter(object):
         """Set the value of current cells."""
         self._refresh()
         self.cells[self._current_cell()] = value
+
+    def set_tags(self, tags):
+        """Set the value of current cells."""
+        self.tags = tags
+        self.tag_string = " ".join(
+            '{}={}'.format(k, v) for k, v in tags.iteritems())
 
     def get_sum(self):
         """Get the sum of values in the counter."""
