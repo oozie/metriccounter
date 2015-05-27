@@ -9,4 +9,11 @@ setup(name='metriccounter',
       author_email='root@ooz.ie',
       url='https://github.com/oozie/metriccounter',
       py_modules=['metriccounter'],
-     )
+      classifiers=[
+          'License :: OSI Approved :: MIT License',
+          'Topic :: System :: Monitoring',
+          'Operating System :: POSIX',
+          'Operating System :: POSIX :: Linux',
+          'Intended Audience :: Developers',
+      ]
+)
