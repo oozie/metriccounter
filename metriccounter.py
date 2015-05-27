@@ -27,6 +27,8 @@ class MetricCounter(object):
     tags = None
     tag_string = None
 
+    ALL_COUNTERS = []
+
     def __init__(self, name, timespan=15, granularity=1, tags={}, fmt=None):
         self.name = name
         self.timespan = timespan
@@ -43,6 +45,10 @@ class MetricCounter(object):
             if 'host' in _tags:
                 _tags.pop('host')
         self.set_tags(_tags)
+        self.ALL_COUNTERS.append(self)
+
+    def __del__(self):
+        self.ALL_COUNTERS.remove(self)
 
     def inc(self):
         """Increment the counter by 1"""
@@ -153,34 +159,31 @@ class StopWatch(object):
 
 class autodump(object):
 
-    """Automatically dump counter records at a constant granularity."""
+    """Automatically dump counter records."""
 
-    def __init__(self, metric_counter):
-        self.metric_counter = metric_counter
+    def __init__(self, *metric_counters):
+        self.counters = list(metric_counters)
+        if self.counters == []:
+            self.counters = MetricCounter.ALL_COUNTERS
         self.stopping = False
         self._scheduler = sched.scheduler(StopWatch.time, StopWatch.sleep)
 
-        since_last_dump = metric_counter.now() % metric_counter.timespan
-        next_dump_time = (
-            metric_counter.now() - since_last_dump + metric_counter.timespan
-        )
-        self._scheduler.enterabs(next_dump_time, 0, self._dump_reschedule, [])
+        self._scheduler.enterabs(MetricCounter.now() + 1,
+            0, self._dump_reschedule, [])
 
         self.dumper_thread = threading.Thread(target=self._scheduler.run)
 
     def _dump_reschedule(self):
         """Reschedule dump action at the next granularity and dump values."""
         if not self.stopping:
-            self._scheduler.enterabs(
-                self.metric_counter.now() + self.metric_counter.timespan, 0,
-                self._dump_reschedule, []
-            )
-        self.metric_counter.dump()
+            self._scheduler.enterabs(MetricCounter.now() + 1, 0, self._dump_reschedule, [])
+        for counter in self.counters:
+            if MetricCounter.now() % counter.timespan == 0:
+                counter.dump()
 
     def __enter__(self):
         """Start auto-dumping on entering 'when' context."""
         self.dumper_thread.start()
-        return self.metric_counter
 
     def __exit__(self, ttype, value, traceback):
         """Cleanup on leaving 'when' context."""
@@ -197,11 +200,11 @@ def _get_next_run_time(interval):
         next_time += interval
         yield next_time
 
-def run_every_n_seconds(interval, counter, func, args=[], kwargs={}):
+def run_every_n_seconds(interval, func, args=[], kwargs={}):
     """Run a function at an even interval."""
     next_run_time_generator = _get_next_run_time(interval)
     for next_time_to_run in next_run_time_generator:
-        counter.set(func(*args, **kwargs))
+        func(*args, **kwargs)
         # Fast forward if func run exceeded the duration of the interval.
         while next_time_to_run < StopWatch.time():
             next_time_to_run = _get_next_run_time(interval)
