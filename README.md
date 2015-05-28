@@ -41,29 +41,6 @@ if __name__ == "__main__":
 ![](https://raw.githubusercontent.com/oozie/metriccounter/gh-pages/images/authfailures.png)
 
 ### Stock metrics
-#### numprocesses.py
-```python
-#!/usr/bin/python
+#### ![numprocesses.py](https://github.com/oozie/metriccounter/blob/master/examples/numprocesses.py) - per-second, per-state breakdown of running processes
 
-import os
-from metriccounter import MetricCounter, autodump, run_every_n_seconds
-
-if __name__ == "__main__":
-    process_counter = MetricCounter(
-        'proc.num_processes',
-        timespan=5,    # Hold a total of 5 seconds.
-        granularity=1, # Report data at a single-second granularity.
-    )
-
-    def count_procs():
-        """Count number of running processes."""
-        process_counter.set(
-            len([pid for pid in os.listdir('/proc') if pid.isdigit()])
-        )
-
-    with autodump():
-        run_every_n_seconds(1, count_procs)
-```
-* tcollector (red line)
-* raw opentsdb put (green line)
 ![](https://raw.githubusercontent.com/oozie/metriccounter/gh-pages/images/numprocesses.png)

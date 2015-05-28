@@ -3,18 +3,30 @@
 import os
 from metriccounter import MetricCounter, autodump, run_every_n_seconds
 
-if __name__ == "__main__":
-    process_counter = MetricCounter(
-        'proc.num_processes',
-        timespan=5,    # Hold a total of 5 seconds.
-        granularity=1, # Report data at a single-second granularity.
-    )
+PROCESS_STATES = ['running', 'sleeping', 'dead', 'zombie',
+    'tracing_stop', 'disk_sleep', 'stopped']
 
+def get_state(pid):
+    with open('/proc/%s/status' % pid) as status:
+        status.readline()
+        state = status.readline()
+    return state[10:state.index(')')].replace(' ', '_')
+
+if __name__ == "__main__":
+    state_counters = {}
+    for state in PROCESS_STATES:
+        state_counters[state] = MetricCounter('proc.num_processes',
+            tags={'state': state})
+
+    unknown_counter = MetricCounter('proc.num_processes', tags={'state': 'unknown'})
     def count_procs():
         """Count number of running processes."""
-        process_counter.set(
-            len([pid for pid in os.listdir('/proc') if pid.isdigit()])
-        )
+        for pid in os.listdir('/proc'):
+            if pid.isdigit():
+                try:
+                    state_counters.get(get_state(pid), unknown_counter).inc()
+                except:
+                    pass
 
     with autodump():
         run_every_n_seconds(1, count_procs)
