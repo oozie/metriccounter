@@ -6,7 +6,7 @@ INTERVAL = 120
 
 if __name__ == "__main__":
     since_boot = MetricCounter('proc.uptime.since_boot', timespan=INTERVAL, granularity=INTERVAL)
-    idle = MetricCounter('proc.uptime.idle ', timespan=INTERVAL, granularity=INTERVAL)
+    idle = MetricCounter('proc.uptime.idle', timespan=INTERVAL, granularity=INTERVAL)
 
     def get_uptime():
         with open('/proc/uptime') as proc_uptime:

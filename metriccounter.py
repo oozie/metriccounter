@@ -96,6 +96,7 @@ class MetricCounter(object):
                     'tag_string': self.tag_string
                 }
             )
+            sys.stdout.flush()
 
     def _refresh(self):
         """Purge outdated cells in the counter."""
