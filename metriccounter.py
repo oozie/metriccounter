@@ -172,13 +172,14 @@ class autodump(object):
             0, self._dump_reschedule, [])
 
         self.dumper_thread = threading.Thread(target=self._scheduler.run)
+        self._init_time = MetricCounter.now() + 2
 
     def _dump_reschedule(self):
         """Reschedule dump action at the next granularity and dump values."""
         if not self.stopping:
             self._scheduler.enterabs(MetricCounter.now() + 1, 0, self._dump_reschedule, [])
         for counter in self.counters:
-            if MetricCounter.now() % counter.timespan == 0:
+            if (self._init_time - MetricCounter.now()) % counter.timespan == 0:
                 counter.dump()
 
     def __enter__(self):

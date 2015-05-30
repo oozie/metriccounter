@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='metriccounter',
-      version='0.0.2',
+      version='0.0.3',
       description='Metric Counter for recording time series',
       author='Slawek Ligus',
       author_email='root@ooz.ie',
