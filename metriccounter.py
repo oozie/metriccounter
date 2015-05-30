@@ -150,12 +150,12 @@ class StopWatch(object):
     @classmethod
     def set_time_function(cls, timefunc):
         """Set an alternative wall clock function."""
-        cls.time = timefunc
+        cls.time = staticmethod(timefunc)
 
     @classmethod
     def set_sleep_function(cls, sleepfunc):
         """Set an alternative sleep function."""
-        cls.sleep = sleepfunc
+        cls.sleep = staticmethod(sleepfunc)
 
 
 class autodump(object):
@@ -209,5 +209,5 @@ def run_every_n_seconds(interval, func, args=[], kwargs={}):
         func(*args, **kwargs)
         # Fast forward if func run exceeded the duration of the interval.
         while next_time_to_run < StopWatch.time():
-            next_time_to_run = _get_next_run_time(interval)
+            next_time_to_run = next_run_time_generator.next()
         StopWatch.sleep(next_time_to_run - StopWatch.time())
