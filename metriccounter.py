@@ -29,7 +29,9 @@ class MetricCounter(object):
 
     ALL_COUNTERS = []
 
-    def __init__(self, name, timespan=15, granularity=1, tags={}, fmt=None):
+    def __init__(self, name, timespan=15, granularity=1, tags={}, fmt=None,
+                 stream=sys.stdout):
+        self.stream = stream
         self.name = name
         self.timespan = timespan
         self.granularity = granularity
@@ -69,10 +71,10 @@ class MetricCounter(object):
         self.tags = tags
         self.tag_string = " ".join('%s=%s' % (k, v) for k, v in tags.items())
 
-    def get_sum(self):
+    def summarize(self, summary_function):
         """Get the sum of values in the counter."""
         self._refresh()
-        return sum(self.cells)
+        return summary_function(self.cells)
 
     def flush(self):
         """Flush the counter."""
@@ -88,7 +90,7 @@ class MetricCounter(object):
         for part in range(0, self.timespan, self.granularity):
             value = sum(cells[part: part + self.granularity])
             timestamp = now - self.timespan + part
-            sys.stdout.write(
+            self.stream.write(
                 self.fmt % {
                     'name': self.name,
                     'timestamp': timestamp,
@@ -96,7 +98,7 @@ class MetricCounter(object):
                     'tag_string': self.tag_string
                 }
             )
-            sys.stdout.flush()
+            self.stream.flush()
 
     def _refresh(self):
         """Purge outdated cells in the counter."""
@@ -113,7 +115,7 @@ class MetricCounter(object):
     @staticmethod
     def now():
         """Return current timestamp in seconds."""
-        return int(time.time())
+        return int(StopWatch.time())
 
     def _current_cell(self):
         """Return current cell based on current timestamp."""
@@ -178,7 +180,8 @@ class autodump(object):
     def _dump_reschedule(self):
         """Reschedule dump action at the next granularity and dump values."""
         if not self.stopping:
-            self._scheduler.enterabs(MetricCounter.now() + 1, 0, self._dump_reschedule, [])
+            self._scheduler.enterabs(MetricCounter.now() + 1,
+                                     0, self._dump_reschedule, [])
         for counter in self.counters:
             if (self._init_time - MetricCounter.now()) % counter.timespan == 0:
                 counter.dump()
